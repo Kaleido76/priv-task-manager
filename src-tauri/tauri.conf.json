@@ -12,14 +12,11 @@
   "app": {
     "windows": [
       {
-        "title": "taskmanager",
-        "width": 800,
-        "height": 600
+        "title": "TaskManager",
+        "width": 1200,
+        "height": 800
       }
-    ],
-    "security": {
-      "csp": null
-    }
+    ]
   },
   "bundle": {
     "active": true,
