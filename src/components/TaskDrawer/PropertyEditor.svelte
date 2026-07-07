@@ -1,5 +1,7 @@
 <script lang="ts">
   import DatePicker from "./DatePicker.svelte";
+  import { statusCfg, priorityCfg } from "$config";
+  import { clickOutside } from "$actions/clickOutside";
   import { fade } from "svelte/transition";
 
   let { draftStatus = $bindable(), draftPriority = $bindable(), draftRecipient = $bindable(), draftDeadline = $bindable() }: {
@@ -9,24 +11,7 @@
     draftDeadline: string;
   } = $props();
 
-  const statusCfg: Record<string, { label: string; bg: string; fg: string }> = {
-    todo: { label: "Todo", bg: "#ddf4ff", fg: "#0969da" },
-    in_progress: { label: "In Progress", bg: "#fff1e5", fg: "#b35900" },
-    done: { label: "Done", bg: "#dafbe1", fg: "#1a7f37" },
-    cancelled: { label: "Cancelled", bg: "#fff0ee", fg: "#cf222e" },
-  };
-
-  const priorityCfg: Record<string, { label: string; bg: string; fg: string }> = {
-    suggestion: { label: "Suggestion", bg: "#f3f4f6", fg: "#656d76" },
-    low: { label: "Low", bg: "#ddf4ff", fg: "#0969da" },
-    medium: { label: "Medium", bg: "#fff1e5", fg: "#b35900" },
-    high: { label: "High", bg: "#fff0ee", fg: "#cf222e" },
-    urgent: { label: "Urgent", bg: "#8b0000", fg: "#ffffff" },
-  };
-
   let openSelect = $state<string | null>(null);
-  let selectEl = $state<HTMLDivElement>();
-  let selectBtnEl = $state<HTMLButtonElement>();
 
   function toggleSelect(name: string) {
     openSelect = openSelect === name ? null : name;
@@ -38,20 +23,16 @@
     openSelect = null;
   }
 
-  function handleWindowClick(e: MouseEvent) {
-    if (selectEl && !selectEl.contains(e.target as Node)) {
-      openSelect = null;
-    }
+  function handleWindowClick() {
+    openSelect = null;
   }
 </script>
 
-<svelte:window onclick={handleWindowClick} />
-
-<div class="property-editor" bind:this={selectEl}>
+<div class="property-editor" use:clickOutside={handleWindowClick}>
   <div class="property-row">
     <span class="property-label">Status</span>
     <div class="sel-wrapper">
-      <button class="sel-btn" onclick={() => toggleSelect("status")} bind:this={selectBtnEl}>
+      <button class="sel-btn" onclick={() => toggleSelect("status")}>
         <span class="sel-dot" style="background:{statusCfg[draftStatus]?.bg ?? '#eaeef2'}"></span>
         <span class="sel-label">{statusCfg[draftStatus]?.label ?? draftStatus}</span>
         <span class="sel-arrow">▾</span>

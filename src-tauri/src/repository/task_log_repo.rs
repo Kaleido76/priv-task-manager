@@ -51,28 +51,4 @@ pub fn delete(db: &Database, id: i64) -> Result<(), String> {
     Ok(())
 }
 
-pub fn search(db: &Database, task_id: i64, keyword: &str) -> Result<Vec<TaskLog>, String> {
-    let conn = db.conn.lock().map_err(|e| e.to_string())?;
-    let mut stmt = conn
-        .prepare(
-            "SELECT id, task_id, content, create_time FROM task_logs \
-             WHERE task_id = ?1 AND content LIKE ?2 ORDER BY create_time ASC",
-        )
-        .map_err(|e| e.to_string())?;
-    let pattern = format!("%{}%", keyword);
-    let rows = stmt
-        .query_map(rusqlite::params![task_id, pattern], |row| {
-            Ok(TaskLog {
-                id: row.get(0)?,
-                task_id: row.get(1)?,
-                content: row.get(2)?,
-                create_time: row.get(3)?,
-            })
-        })
-        .map_err(|e| e.to_string())?;
-    let mut logs = Vec::new();
-    for row in rows {
-        logs.push(row.map_err(|e| e.to_string())?);
-    }
-    Ok(logs)
-}
+

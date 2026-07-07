@@ -2,6 +2,7 @@
   import type { Task } from "$types";
   import { formatDate } from "$utils";
   import { taskStore } from "$stores";
+  import { statusCfg, priorityCfg, getDeadlineCapsule } from "$config";
   import { CheckSquare, Square } from "@lucide/svelte";
 
   let { task, isSelected, onSelect, gridTemplateCols }: {
@@ -15,33 +16,7 @@
 
   let checked = $derived($selectedTaskIds.has(task.id));
 
-  const statusCfg: Record<string, { label: string; bg: string; fg: string }> = {
-    todo: { label: "Todo", bg: "#ddf4ff", fg: "#0969da" },
-    in_progress: { label: "In Progress", bg: "#fff1e5", fg: "#b35900" },
-    done: { label: "Done", bg: "#dafbe1", fg: "#1a7f37" },
-    cancelled: { label: "Cancelled", bg: "#fff0ee", fg: "#cf222e" },
-  };
-
-  const priorityCfg: Record<string, { label: string; bg: string; fg: string }> = {
-    suggestion: { label: "Suggestion", bg: "#f3f4f6", fg: "#656d76" },
-    low: { label: "Low", bg: "#ddf4ff", fg: "#0969da" },
-    medium: { label: "Medium", bg: "#fff1e5", fg: "#b35900" },
-    high: { label: "High", bg: "#fff0ee", fg: "#cf222e" },
-    urgent: { label: "Urgent", bg: "#8b0000", fg: "#ffffff" },
-  };
-
-  let deadlineCapsule = $derived.by(() => {
-    if (!task.deadline || task.status === "done" || task.status === "cancelled") return null;
-    const now = new Date();
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const d = new Date(task.deadline);
-    const due = new Date(d.getFullYear(), d.getMonth(), d.getDate());
-    const diffMs = due.getTime() - today.getTime();
-    const diffDays = Math.round(diffMs / 86400000);
-    if (diffDays < 0) return { text: `${-diffDays} Day`, bg: "#fff0ee", fg: "#cf222e" };
-    if (diffDays === 0) return { text: "Today", bg: "#fff1e5", fg: "#b35900" };
-    return { text: `${diffDays} Day`, bg: "#dafbe1", fg: "#1a7f37" };
-  });
+  let deadlineCapsule = $derived(getDeadlineCapsule(task.deadline, task.status));
 
   function handleCheck(e: Event) {
     e.stopPropagation();

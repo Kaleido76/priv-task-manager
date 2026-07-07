@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 use crate::database::Database;
 use crate::models::task::{Task, TaskContent, TaskLog};
 use crate::repository::{task_log_repo, task_repo};
+use crate::utils::deserialize_some;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UpdateTaskRequest {
@@ -10,8 +11,10 @@ pub struct UpdateTaskRequest {
     pub title: Option<String>,
     pub status: Option<String>,
     pub priority: Option<String>,
-    pub recipient: Option<String>,
-    pub deadline: Option<String>,
+    #[serde(default, deserialize_with = "deserialize_some")]
+    pub recipient: Option<Option<String>>,
+    #[serde(default, deserialize_with = "deserialize_some")]
+    pub deadline: Option<Option<String>>,
 }
 
 pub fn create_task(db: &Database, project_id: i64, title: &str) -> Result<Task, String> {
@@ -38,10 +41,6 @@ pub fn create_task(db: &Database, project_id: i64, title: &str) -> Result<Task, 
     Ok(task)
 }
 
-pub fn get_task(db: &Database, id: i64) -> Result<Option<Task>, String> {
-    task_repo::find_by_id(db, id)
-}
-
 pub fn update_task(db: &Database, req: &UpdateTaskRequest) -> Result<Task, String> {
     let mut task = task_repo::find_by_id(db, req.id)?
         .ok_or_else(|| "Task not found".to_string())?;
@@ -56,10 +55,10 @@ pub fn update_task(db: &Database, req: &UpdateTaskRequest) -> Result<Task, Strin
         task.priority = priority.clone();
     }
     if let Some(recipient) = &req.recipient {
-        task.recipient = Some(recipient.clone());
+        task.recipient = recipient.clone();
     }
     if let Some(deadline) = &req.deadline {
-        task.deadline = Some(deadline.clone());
+        task.deadline = deadline.clone();
     }
 
     task.update_time = chrono::Utc::now().to_rfc3339();

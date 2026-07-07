@@ -1,5 +1,6 @@
 <script lang="ts">
   import { ChevronLeft, ChevronRight, Calendar } from "@lucide/svelte";
+  import { clickOutside } from "$actions/clickOutside";
   import { fly } from "svelte/transition";
 
   let { value = $bindable("") }: { value: string } = $props();
@@ -7,7 +8,6 @@
   let open = $state(false);
   let viewYear = $state(new Date().getFullYear());
   let viewMonth = $state(new Date().getMonth());
-  let pickerEl = $state<HTMLDivElement>();
 
   function initView(dateStr: string) {
     if (dateStr) {
@@ -45,10 +45,8 @@
     open = false;
   }
 
-  function handleWindowClick(e: MouseEvent) {
-    if (open && pickerEl && !pickerEl.contains(e.target as Node)) {
-      open = false;
-    }
+  function handleWindowClick() {
+    open = false;
   }
 
   let calendarDays = $derived.by(() => {
@@ -65,9 +63,7 @@
   const monthName = $derived(new Date(viewYear, viewMonth).toLocaleString("en-US", { month: "long" }));
 </script>
 
-<svelte:window onclick={handleWindowClick} />
-
-<div class="dp-root" bind:this={pickerEl}>
+<div class="dp-root" use:clickOutside={handleWindowClick}>
   <div class="dp-trigger" onclick={toggleOpen} onkeydown={(e) => { if (e.key === "Enter") toggleOpen(); }} role="button" tabindex="0">
     <span class="dp-icon"><Calendar size={14} /></span>
     <span class="dp-text">{value || "No deadline"}</span>

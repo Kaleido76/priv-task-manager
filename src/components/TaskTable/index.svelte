@@ -3,6 +3,7 @@
   import { uiStore } from "$stores";
   import { projectStore } from "$stores";
   import TaskRow from "./TaskRow.svelte";
+  import { clickOutside } from "$actions/clickOutside";
   import { Trash2, CheckSquare, Square, Move } from "@lucide/svelte";
   import { fade } from "svelte/transition";
 
@@ -52,7 +53,6 @@
   });
 
   let movePopupOpen = $state(false);
-  let movePopupEl = $state<HTMLDivElement>();
 
   function toggleMovePopup() {
     movePopupOpen = !movePopupOpen;
@@ -62,15 +62,7 @@
     taskStore.batchMove(pid);
     movePopupOpen = false;
   }
-
-  function handleWindowClick(e: MouseEvent) {
-    if (movePopupOpen && movePopupEl && !movePopupEl.contains(e.target as Node)) {
-      movePopupOpen = false;
-    }
-  }
 </script>
-
-<svelte:window onclick={handleWindowClick} />
 
 <div class="task-table">
   <div class="table-header" style="grid-template-columns: {gridTemplateCols}">
@@ -113,7 +105,7 @@
   {#if $hasSelection}
     <div class="batch-bar" transition:fade={{ duration: 150 }}>
       <span class="batch-count">{$selectedTaskIds.size} selected</span>
-      <div class="batch-actions" bind:this={movePopupEl}>
+      <div class="batch-actions" use:clickOutside={() => movePopupOpen = false}>
         <button class="batch-btn batch-btn-label" onclick={() => taskStore.selectAll()} title="Select all">
           <CheckSquare size={14} /> Select All
         </button>

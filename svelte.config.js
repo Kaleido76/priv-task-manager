@@ -19,6 +19,8 @@ const config = {
       $components: "./src/components",
       $utils: "./src/utils",
       $styles: "./src/styles",
+      $config: "./src/config",
+      $actions: "./src/actions",
     },
   },
 };

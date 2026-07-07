@@ -3,7 +3,6 @@ mod database;
 mod repository;
 mod services;
 mod commands;
-mod config;
 mod utils;
 
 use tauri::Manager;
