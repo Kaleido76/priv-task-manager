@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { Task, TaskContent, TaskLog, UpdateTaskRequest } from "$types";
+import type { Task, TaskContent, TaskLog, TaskCard, CardData, UpdateTaskRequest } from "$types";
 
 function log(method: string, args?: Record<string, unknown>) {
   console.log(`[API] ${method}`, args ?? "");
@@ -75,4 +75,45 @@ export async function deleteTasks(ids: number[]): Promise<void> {
 export async function moveTasks(ids: number[], projectId: number): Promise<void> {
   log("moveTasks", { ids, projectId });
   await invoke("move_tasks", { ids, projectId });
+}
+
+// Cards
+export async function getTaskCards(taskId: number): Promise<TaskCard[]> {
+  log("getTaskCards", { taskId });
+  return invoke<TaskCard[]>("get_task_cards", { taskId });
+}
+
+export async function createTaskCard(taskId: number, cardType: string, data: CardData): Promise<TaskCard> {
+  log("createTaskCard", { taskId, cardType });
+  return invoke<TaskCard>("create_task_card", { taskId, cardType, data });
+}
+
+export async function updateTaskCard(id: number, data: CardData): Promise<TaskCard> {
+  log("updateTaskCard", { id });
+  return invoke<TaskCard>("update_task_card", { id, data });
+}
+
+export async function deleteTaskCard(id: number): Promise<void> {
+  log("deleteTaskCard", { id });
+  await invoke("delete_task_card", { id });
+}
+
+export async function reorderTaskCards(ids: number[]): Promise<void> {
+  log("reorderTaskCards", { ids });
+  await invoke("reorder_task_cards", { ids });
+}
+
+export async function openFileLocation(path: string): Promise<void> {
+  log("openFileLocation", { path });
+  await invoke("open_file_location", { path });
+}
+
+export async function openUrl(url: string): Promise<void> {
+  log("openUrl", { url });
+  await invoke("open_url", { url });
+}
+
+export async function checkPathExists(path: string): Promise<boolean> {
+  log("checkPathExists", { path });
+  return invoke<boolean>("check_path_exists", { path });
 }

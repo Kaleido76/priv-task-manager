@@ -41,6 +41,14 @@ pub fn run() {
             commands::task_cmds::delete_task_log,
             commands::task_cmds::delete_tasks,
             commands::task_cmds::move_tasks,
+            commands::card_cmds::get_task_cards,
+            commands::card_cmds::create_task_card,
+            commands::card_cmds::update_task_card,
+            commands::card_cmds::delete_task_card,
+            commands::card_cmds::reorder_task_cards,
+            commands::card_cmds::open_file_location,
+            commands::card_cmds::open_url,
+            commands::card_cmds::check_path_exists,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

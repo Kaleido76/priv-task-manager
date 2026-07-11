@@ -71,7 +71,7 @@
     border-bottom: 1px solid var(--color-border);
     cursor: pointer;
     transition: background 0.15s ease;
-    min-height: 34px;
+    min-height: 40px;
   }
   .task-row:hover {
     background: var(--table-row-hover-bg, rgba(0,0,0,0.04));
@@ -118,7 +118,7 @@
     display: inline-block;
     padding: 2px 8px;
     border-radius: 12px;
-    font-size: 11px;
+    font-size: 12px;
     font-weight: 500;
     line-height: 1.5;
     white-space: nowrap;

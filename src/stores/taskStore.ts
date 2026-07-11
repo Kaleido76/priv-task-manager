@@ -7,8 +7,6 @@ function createTaskStore() {
   const selectedId = writable<number | null>(null);
   const currentProjectId = writable<number | null>(null);
   const searchKeyword = writable("");
-  const filterStatus = writable<string>("__all__");
-  const filterPriority = writable<string>("__all__");
   const selectedTaskIds = writable<Set<number>>(new Set());
 
   const selectedTask = derived([tasks, selectedId], ([$tasks, $selectedId]) =>
@@ -24,8 +22,6 @@ function createTaskStore() {
       selectedId.set(null);
       selectedTaskIds.set(new Set());
       searchKeyword.set("");
-      filterStatus.set("__all__");
-      filterPriority.set("__all__");
       const result = await api.getTasks(projectId);
       tasks.set(result);
       console.log(`[Store] taskStore.load => ${result.length} tasks`);
@@ -39,17 +35,9 @@ function createTaskStore() {
     if (!pid) return;
     console.log("[Store] taskStore.refresh", pid);
     try {
-      const kw = get(searchKeyword) || undefined;
-      const fs = get(filterStatus) !== "__all__" ? get(filterStatus) : undefined;
-      const fp = get(filterPriority) !== "__all__" ? get(filterPriority) : undefined;
-      if (kw || fs || fp) {
-        const result = await api.searchTasks(pid, kw, fs, fp);
-        tasks.set(result);
-      } else {
-        const result = await api.getTasks(pid);
-        tasks.set(result);
-      }
-      console.log(`[Store] taskStore.refresh => ${get(tasks).length} tasks`);
+      const result = await api.getTasks(pid);
+      tasks.set(result);
+      console.log(`[Store] taskStore.refresh => ${result.length} tasks`);
     } catch (e) {
       console.error("[Store] taskStore.refresh error:", e);
     }
@@ -90,20 +78,9 @@ function createTaskStore() {
     }
   }
 
-  async function search(projectId: number) {
-    console.log("[Store] taskStore.search", projectId);
-    try {
-      const result = await api.searchTasks(
-        projectId,
-        get(searchKeyword) || undefined,
-        get(filterStatus) !== "__all__" ? get(filterStatus) : undefined,
-        get(filterPriority) !== "__all__" ? get(filterPriority) : undefined
-      );
-      tasks.set(result);
-      console.log(`[Store] taskStore.search => ${result.length} tasks`);
-    } catch (e) {
-      console.error("[Store] taskStore.search error:", e);
-    }
+  function search(_projectId: number) {
+    console.log("[Store] taskStore.search — frontend-only, reloading tasks");
+    refresh();
   }
 
   function toggleSelect(id: number) {
@@ -151,7 +128,7 @@ function createTaskStore() {
 
   return {
     tasks, selectedId, selectedTask, currentProjectId,
-    searchKeyword, filterStatus, filterPriority, selectedTaskIds, hasSelection,
+    searchKeyword, selectedTaskIds, hasSelection,
     load, create, update, remove, search, refresh,
     toggleSelect, selectAll, deselectAll, batchDelete, batchMove,
   };

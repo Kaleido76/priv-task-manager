@@ -18,3 +18,19 @@ export function formatDate(iso: string): string {
 export function nowISO(): string {
   return new Date().toISOString();
 }
+
+export function truncatePath(path: string, maxLen: number = 60): string {
+  if (path.length <= maxLen) return path;
+  const sep = path.includes("\\") ? "\\" : "/";
+  const idx = path.lastIndexOf(sep);
+  if (idx < 0) return path;
+  const fileName = path.slice(idx + 1);
+  const drive = path.slice(0, path.indexOf(sep) + 1);
+  const ellipsis = "…";
+  const head = drive;
+  if (head.length + ellipsis.length + fileName.length > maxLen) {
+    if (fileName.length + 3 > maxLen) return fileName.slice(0, maxLen - 3) + "...";
+    return ellipsis + fileName;
+  }
+  return head + ellipsis + fileName;
+}

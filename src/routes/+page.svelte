@@ -6,7 +6,7 @@
   import TaskDrawer from "$components/TaskDrawer/index.svelte";
   import StatusBar from "$components/StatusBar/index.svelte";
   import ProjectHeader from "$components/ProjectHeader/index.svelte";
-  import { projectStore, taskStore, uiStore } from "$stores";
+  import { projectStore, taskStore, uiStore, saveRequested } from "$stores";
   import { fade, fly } from "svelte/transition";
 
   const { selectedId, selectedProject } = projectStore;
@@ -55,7 +55,7 @@
     role="button"
     tabindex="0"
     transition:fade={{ duration: 150 }}
-    onclick={() => uiStore.closeDrawer()}
+    onclick={() => uiStore.requestSave()}
     onkeydown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); uiStore.closeDrawer(); } }}
   ></div>
   <div class="app-drawer" transition:fly={{ duration: 200, x: 20, opacity: 0 }}>

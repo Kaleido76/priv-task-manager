@@ -45,3 +45,29 @@ export interface UpdateTaskRequest {
   recipient?: string | null;
   deadline?: string | null;
 }
+
+export type CardType = "file" | "note" | "link" | "todolist";
+
+export interface TodoItem {
+  id: string;
+  text: string;
+  done: boolean;
+}
+
+export interface CardData {
+  name?: string;
+  path?: string;
+  url?: string;
+  content?: string;
+  items?: TodoItem[];
+}
+
+export interface TaskCard {
+  id: number;
+  task_id: number;
+  card_type: CardType;
+  sort_order: number;
+  data: CardData;
+  create_time: string;
+  update_time: string;
+}

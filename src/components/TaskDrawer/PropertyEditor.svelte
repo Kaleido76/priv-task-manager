@@ -107,8 +107,9 @@
   }
   .property-input {
     flex: 1;
-    height: 28px;
-    padding: 0 6px;
+    min-width: 0;
+    height: 34px;
+    padding: 0 10px;
     border: 1px solid var(--color-border);
     background: var(--color-bg-primary);
     color: var(--color-text-primary);
@@ -123,6 +124,7 @@
 
   .sel-wrapper {
     flex: 1;
+    min-width: 0;
     position: relative;
   }
   .sel-btn {
@@ -130,8 +132,8 @@
     align-items: center;
     gap: 6px;
     width: 100%;
-    height: 28px;
-    padding: 0 6px;
+    height: 34px;
+    padding: 0 10px;
     border: 1px solid var(--color-border);
     background: var(--color-bg-primary);
     color: var(--color-text-primary);
@@ -155,7 +157,7 @@
     flex-shrink: 0;
   }
   .sel-arrow {
-    font-size: 10px;
+    font-size: 12px;
     color: var(--color-text-secondary);
     margin-left: auto;
   }

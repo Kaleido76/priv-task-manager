@@ -18,20 +18,20 @@
   --color-priority-high: #cf222e;
   --color-priority-urgent: #82071e;
 
-  --sidebar-width: 240px;
-  --toolbar-height: 44px;
-  --statusbar-height: 28px;
-  --drawer-width: 420px;
+  --sidebar-width: 250px;
+  --toolbar-height: 46px;
+  --statusbar-height: 30px;
+  --drawer-width: 840px;
 
   --font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif;
-  --font-size-sm: 13px;
-  --font-size-base: 14px;
-  --font-size-lg: 16px;
+  --font-size-sm: 15px;
+  --font-size-base: 16px;
+  --font-size-lg: 18px;
 
-  --spacing-xs: 5px;
-  --spacing-sm: 10px;
-  --spacing-md: 14px;
-  --spacing-lg: 18px;
+  --spacing-xs: 7px;
+  --spacing-sm: 12px;
+  --spacing-md: 17px;
+  --spacing-lg: 22px;
 
   --sidebar-bg: var(--color-bg-secondary);
   --sidebar-hover-bg: var(--color-bg-tertiary);

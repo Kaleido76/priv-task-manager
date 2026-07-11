@@ -100,13 +100,14 @@
 <style>
   .dp-root {
     flex: 1;
+    min-width: 0;
     position: relative;
   }
   .dp-trigger {
     display: flex;
     align-items: center;
-    height: 28px;
-    padding: 0 6px;
+    height: 34px;
+    padding: 0 10px;
     border: 1px solid var(--color-border);
     background: var(--color-bg-primary);
     border-radius: var(--radius-sm);
@@ -182,7 +183,7 @@
   }
   .dp-wd {
     text-align: center;
-    font-size: 11px;
+    font-size: 12px;
     font-weight: 600;
     color: var(--color-text-secondary);
     padding: 4px 0;

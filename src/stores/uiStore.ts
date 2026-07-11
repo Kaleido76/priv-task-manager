@@ -1,10 +1,11 @@
 import { writable } from "svelte/store";
 
+export const saveRequested = writable(0);
+
 function createUiStore() {
   const drawerOpen = writable(false);
   const statusMessage = writable("Ready");
   const saveStatus = writable<"saved" | "saving" | "unsaved">("saved");
-  const activeTab = writable<"note" | "logs">("note");
 
   function toggleDrawer() {
     console.log("[Store] uiStore.toggleDrawer");
@@ -21,7 +22,11 @@ function createUiStore() {
     drawerOpen.set(false);
   }
 
-  return { drawerOpen, statusMessage, saveStatus, activeTab, toggleDrawer, openDrawer, closeDrawer };
+  function requestSave() {
+    saveRequested.update((n) => n + 1);
+  }
+
+  return { drawerOpen, statusMessage, saveStatus, toggleDrawer, openDrawer, closeDrawer, requestSave };
 }
 
 export const uiStore = createUiStore();

@@ -178,7 +178,7 @@
   .ph-meta {
     display: flex;
     gap: var(--spacing-lg);
-    font-size: 11px;
+    font-size: 12px;
     color: var(--color-text-secondary);
   }
   .ph-meta-item {

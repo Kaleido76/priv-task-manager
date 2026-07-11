@@ -1,28 +1,14 @@
 <script lang="ts">
   import { taskStore } from "$stores";
-  import { TaskStatus, Priority } from "$types";
-  import { get } from "svelte/store";
   import { Plus, Search } from "@lucide/svelte";
 
-  const { currentProjectId, searchKeyword, filterStatus, filterPriority } = taskStore;
+  const { searchKeyword } = taskStore;
 
-  let searchTimeout: ReturnType<typeof setTimeout>;
   let searchValue = $state("");
 
   function handleSearchInput() {
     console.log("[Toolbar] handleSearchInput", searchValue);
     searchKeyword.set(searchValue);
-    clearTimeout(searchTimeout);
-    searchTimeout = setTimeout(() => {
-      const pid = get(currentProjectId);
-      if (pid) taskStore.search(pid);
-    }, 300);
-  }
-
-  function applyFilter() {
-    console.log("[Toolbar] applyFilter", get(filterStatus), get(filterPriority));
-    const pid = get(currentProjectId);
-    if (pid) taskStore.search(pid);
   }
 
   async function handleNewTask() {
@@ -49,31 +35,6 @@
       />
     </div>
   </div>
-  <div class="toolbar-right">
-    <select
-      class="filter-select"
-      bind:value={$filterStatus}
-      onchange={applyFilter}
-    >
-      <option value={"__all__"}>All Status</option>
-      <option value={TaskStatus.Todo}>Todo</option>
-      <option value={TaskStatus.InProgress}>In Progress</option>
-      <option value={TaskStatus.Done}>Done</option>
-      <option value={TaskStatus.Cancelled}>Cancelled</option>
-    </select>
-    <select
-      class="filter-select"
-      bind:value={$filterPriority}
-      onchange={applyFilter}
-    >
-      <option value={"__all__"}>All Priority</option>
-      <option value={Priority.Suggestion}>Suggestion</option>
-      <option value={Priority.Low}>Low</option>
-      <option value={Priority.Medium}>Medium</option>
-      <option value={Priority.High}>High</option>
-      <option value={Priority.Urgent}>Urgent</option>
-    </select>
-  </div>
 </header>
 
 <style>
@@ -95,11 +56,6 @@
     display: flex;
     align-items: center;
     justify-content: center;
-  }
-  .toolbar-right {
-    display: flex;
-    align-items: center;
-    gap: var(--spacing-sm);
   }
   .btn {
     display: inline-flex;
@@ -152,20 +108,5 @@
   .search-input:focus {
     border-color: var(--color-accent);
     box-shadow: 0 0 0 3px rgba(9, 105, 218, 0.12);
-  }
-  .filter-select {
-    height: 28px;
-    padding: 0 6px;
-    border: 1px solid var(--color-border);
-    background: var(--color-bg-primary);
-    color: var(--color-text-primary);
-    border-radius: var(--radius-sm);
-    font-size: var(--font-size-sm);
-    outline: none;
-    cursor: pointer;
-    transition: border-color 0.15s ease;
-  }
-  .filter-select:focus {
-    border-color: var(--color-accent);
   }
 </style>

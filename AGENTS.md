@@ -4,7 +4,7 @@
 
 A portable desktop task management app built with **Tauri v2** + **Svelte 5** + **SvelteKit 2** + **SQLite (rusqlite)**.
 
-Users create **Projects** (sidebar) and manage **Tasks** (table + drawer) under each project. Features inline rename, search/filter, deadline with helper capsules, notes, activity logs, batch operations, and custom colored dropdown/picker components.
+Users create **Projects** (sidebar) and manage **Tasks** (table + drawer) under each project. Features inline rename, per-column filter/sort with popups, deadline helper capsules, notes, activity logs, batch operations, and custom colored dropdown/picker components.
 
 ## Tech Stack
 
@@ -34,24 +34,33 @@ TaskManager/
 │   ├── routes/
 │   │   ├── +layout.svelte        # Global layout — imports variables.css + global.css
 │   │   ├── +layout.ts            # SSR disabled
-│   │   └── +page.svelte          # Single-page app shell
+│   │   └── +page.svelte          # Shell (imports ProjectHeader, etc.)
 │   ├── components/
 │   │   ├── Sidebar/              # Project list + create (card-style items)
-│   │   ├── Toolbar/              # Search, filters, "+ New Task"
-│   │   ├── TaskTable/            # Sortable 7-column table + TaskRow (capsule tags, helper col)
-│   │   ├── TaskDrawer/           # Detail panel: title, properties (custom dropdowns), notes, logs
-│   │   ├── StatusBar/            # Project name, counts, save status
-│   │   ├── StatusBadge/          # (unused) Colored status badge
-│   │   └── ProgressBadge/        # (unused) Progress bar
+│   │   ├── ProjectHeader/        # Project name + description (extracted from +page)
+│   │   ├── Toolbar/              # Global search (+ New Task)
+│   │   ├── TaskTable/            # 7-column grid + column header buttons + filter popups
+│   │   ├── TaskDrawer/           # Detail panel: title, properties, cards (file/note/link/todolist)
+│   │   │   ├── index.svelte      # Drawer shell, cards list, drag-drop listener, auto-save
+│   │   │   ├── CardItem.svelte   # Read-only card display with validation, drop target
+│   │   │   ├── CardEditor.svelte # Inline card editor with todolist keyboard nav
+│   │   │   ├── CardAdder.svelte  # "+" button to add new cards
+│   │   │   ├── DatePicker.svelte # Custom calendar popup for deadline
+│   │   │   └── PropertyEditor.svelte # Colored dropdowns for status/priority/recipient/deadline
+│   │   └── StatusBar/            # Project name, counts, save status
+│   ├── config/
+│   │   └── taskConfig.ts         # statusCfg, priorityCfg, deadline capsule colors
+│   ├── actions/
+│   │   └── clickOutside.ts       # clickOutside Svelte action
 │   ├── stores/
 │   │   ├── projectStore.ts       # Project CRUD, selectedId
-│   │   ├── taskStore.ts          # Task CRUD + search/filter + batch select
+│   │   ├── taskStore.ts          # Task CRUD + searchKeyword + batch select
 │   │   └── uiStore.ts            # Drawer, saveStatus, activeTab
 │   ├── api/
 │   │   ├── project.ts            # invoke("get_projects"), etc.
 │   │   └── task.ts               # invoke("get_tasks"), etc.
 │   ├── types/
-│   │   ├── task.ts               # Task, TaskStatus, Priority, UpdateTaskRequest
+│   │   ├── task.ts               # Task, CardData, TodoItem, CardType — no Rust enums, plain strings
 │   │   └── project.ts            # Project interface
 │   ├── utils/
 │   │   └── index.ts              # formatDate, formatDateTime, nowISO
@@ -68,26 +77,25 @@ TaskManager/
 │   │   │       ├── mod.rs        # Schema init (runs 0001_init.sql)
 │   │   │       └── 0001_init.sql # Final schema (projects with description/update_time, tasks with recipient, no progress)
 │   │   ├── models/
-│   │   │   ├── task.rs           # Task, TaskContent, TaskLog, TaskStatus, Priority
+│   │   │   ├── task.rs           # Task, TaskContent, TaskLog (enums removed — plain strings)
 │   │   │   └── project.rs        # Project
 │   │   ├── repository/           # Raw SQL queries
 │   │   │   ├── project_repo.rs   # CRUD + sort_order
 │   │   │   ├── task_repo.rs      # CRUD + search + content upsert + batch ops
-│   │   │   └── task_log_repo.rs  # CRUD + delete
+│   │   │   └── task_log_repo.rs  # CRUD + delete + search (removed)
 │   │   ├── services/             # Business logic
 │   │   │   ├── project_service.rs
 │   │   │   └── task_service.rs
 │   │   ├── commands/             # #[tauri::command] handlers
 │   │   │   ├── project_cmds.rs
-│   │   │   └── task_cmds.rs
-│   │   ├── config/
-│   │   │   └── mod.rs            # Empty
+│   │   │   ├── task_cmds.rs
+│   │   │   └── card_cmds.rs
 │   │   └── utils/
-│   │       └── mod.rs            # Empty
+│   │       └── mod.rs            # deserialize_some helper for nullable Option fields
 │   ├── Cargo.toml
 │   └── tauri.conf.json
 ├── package.json
-├── svelte.config.js              # adapter-static, path aliases ($api, $stores, etc.)
+├── svelte.config.js              # adapter-static, path aliases ($api, $stores, $config, $actions, etc.)
 ├── tsconfig.json
 └── vite.config.js
 ```
@@ -102,6 +110,8 @@ TaskManager/
 | `$types` | `./src/types` |
 | `$utils` | `./src/utils` |
 | `$styles` | `./src/styles` |
+| `$config` | `./src/config` |
+| `$actions` | `./src/actions` |
 
 ## Architecture: Data Flow
 
@@ -136,54 +146,9 @@ See `src-tauri/src/database/migrations/0001_init.sql`. Key tables:
 - **tasks** — `id, project_id, title, status, priority, recipient, deadline, create_time, update_time`
 - **task_contents** — `task_id (PK), note` (upsert pattern)
 - **task_logs** — `id, task_id, content, create_time`
+- **task_cards** — `id, task_id, sort_order, card_type, data (JSON), create_time, update_time`
 
 The schema is applied once at startup via `CREATE TABLE IF NOT EXISTS`. There is no migration versioning — the `0001_init.sql` is the single source of truth for the database layout.
-
-## Logging System
-
-All key function calls log at both layers:
-
-| Layer | Prefix | Output |
-|---|---|---|
-| Rust backend | `[DB]` / `[CMD]` | stdout (visible in terminal) |
-| Frontend API | `[API]` | Browser DevTools console |
-| Frontend Store | `[Store]` | Browser DevTools console |
-| Frontend Component | `[Page]` / `[Sidebar]` / `[Toolbar]` | Browser DevTools console |
-
-To trace an interaction, watch the terminal for `[CMD]` and DevTools for `[API]` / `[Store]`.
-
-## Development Workflow
-
-```bash
-# Install dependencies
-pnpm install
-
-# Start Tauri dev (with hot-reload)
-pnpm tauri dev
-
-# Build for production
-pnpm tauri build
-
-# Frontend-only dev (no Tauri backend)
-pnpm dev
-
-# Type-check frontend
-pnpm check
-
-# Build frontend (outputs to build/)
-pnpm build
-```
-
-## How to Add a New Feature
-
-1. **Database**: Edit `src-tauri/src/database/migrations/0001_init.sql` to add/alter tables. The schema is applied via `CREATE TABLE IF NOT EXISTS` — for column changes, edit the SQL directly (dev-only, no migration versioning).
-2. **Rust model**: Define struct in `src-tauri/src/models/` with `Serialize + Deserialize`.
-3. **Repository**: Add SQL queries in `src-tauri/src/repository/`.
-4. **Service**: Business logic in `src-tauri/src/services/`.
-5. **Command**: `#[tauri::command]` in `src-tauri/src/commands/`, register in `lib.rs` `generate_handler![]`.
-6. **Frontend API**: Add `invoke()` wrapper in `src/api/`.
-7. **Frontend Store**: State management in `src/stores/`.
-8. **Component**: UI in `src/components/`.
 
 ## Key Components
 
@@ -194,10 +159,22 @@ Custom calendar popup replacing native `<input type="date">`. Supports month nav
 Custom button+popup widgets replacing native `<select>` for Status and Priority. Each option rendered as a colored capsule dot + label. Popup uses Svelte `transition:fade` for smooth enter/exit. Recipient is a plain text input; Deadline uses the DatePicker.
 
 ### TaskTable (`src/components/TaskTable/`)
-7-column CSS Grid layout (checkbox + 6 data columns). Columns are hardcoded with specific widths and text-align values — no `columns` prop (to prevent index mismatch). Header cells are sortable by clicking (except `__deadline_help` which is an empty-label non-sortable spacer). The `__deadline_help` column shows colored capsules ("3 Day" green / "Today" orange / "2 Day" red) based on days until deadline; hidden for done/cancelled tasks.
+7-column CSS Grid layout (checkbox + 6 data columns). Columns are hardcoded with specific widths and text-align values — no `columns` prop (to prevent index mismatch). Each column header has three **circular buttons** ([Sort] [Filter] [Clear]) that appear on hover and straddle the header's top border. Active buttons turn accent blue with white icon. Filter popups use `position: fixed` (JS-anchored from button `getBoundingClientRect`) to avoid clipping. Sorting and filtering are **pure frontend** (local state in TaskTable, no store or backend calls). The `__deadline_help` column shows colored capsules ("3 Day" green / "Today" orange / "-2 Day" red) based on days until deadline; hidden for done/cancelled tasks.
 
 ### TaskDrawer (`src/components/TaskDrawer/`)
-Floating fixed-position panel with backdrop. Edits use a local draft state; save button with `saving→saved→idle` animation does NOT close drawer. Discard on Escape/backdrop/× click. Notes section: read-only display with hover Pencil edit toggle; Trash2 shows red AlertTriangle confirm on first click, clears on second. Logs each have a two-step delete button. Read-only created/updated timestamps displayed in a `.drawer-meta` divider.
+Floating fixed-position 840px panel with backdrop. Two-column grid layout: metadata (title, status/priority/recipient/deadline via PropertyEditor, created/updated timestamps) left, cards right. Edits use a local draft state with `saveRequested` store signal for auto-save.
+
+**Save/Discard**: Merged X+Discard button (2‑step confirm: first click shows AlertTriangle + "Discard anyway", second reverts and closes; 3s auto-reset). Escape saves metadata then closes. Backdrop click saves via `saveRequested` counter signal (`$effect` watches it, resets to 0 after consumption).
+
+**Cards system**: Four card types — **file** (path+name, double-click opens file location), **note** (full-height text, selectable without editing, no line‑clamp), **link** (url+name, double-click opens with auto-`https://`), **todolist** (checklist items with inline toggle). Cards are flex items with `flex-shrink: 0` and `overflow: hidden` (corner clipping). Editor replaces card inline with keyboard nav (todolist: Enter/Up/Down). Adder button at column bottom. Dragging card headers reorders via `reorderTaskCards`. External file drag-drop onto File Cards uses Tauri's `getCurrentWebview().onDragDropEvent()` — highlights with `document.elementFromPoint()` hit‑test, replaces path + clears name on drop. Validation: file path checked via `check_path_exists` Rust command, link URL via regex; invalid cards show yellow `AlertTriangle`.
+
+**Card scrolling**: `.drawer-body` uses `grid-template-rows: 1fr` + `min-height: 0` on grid columns, `.cards-list` uses `flex: 1; overflow-y: auto`, cards use `flex-shrink: 0` to prevent compression when content overflows.
+
+### CardEditor (`src/components/TaskDrawer/CardEditor.svelte`)
+Inline edit card for all four types. Todolist editor: keyed `{#each}` items with `bind:this` refs, keyboard navigation (Enter inserts new item after current, Up/Down moves focus). `canSave` derived (checks non-empty content for the card type), `showDeleteLabel` when existing content fully cleared (destroys card on save).
+
+### CardItem (`src/components/TaskDrawer/CardItem.svelte`)
+Read-only card display. File/Link: click‑hint "Double‑click to open…" left, validation warning right in `.card-footer`. Todolist: inline checkbox toggle calls `onToggleTodoItem`. Action buttons (edit, delete with 2‑step confirm) positioned absolute in `.card-body`. Delete confirm resets on `onmouseleave`. Accepts `dropTarget` boolean prop for external drag highlight (accent outline).
 
 ### Batch Operations
 Checkbox column enables multi-select. When `selectedTaskIds.size > 0`, row click toggles selection instead of opening drawer. Floating action bar (`transition:fade`) with Select All / Clear / Delete (single-step) / Move to Project (popup with project list). Backend `delete_tasks` / `move_tasks` accept `Vec<i64>`.
@@ -207,12 +184,14 @@ Card-style project items with white background, border, rounded corners, and hov
 
 ## UI Conventions
 
-- **Capsule tags**: Status and Priority rendered as rounded pills with GitHub-style color pairs (bg/fg). Used in both TaskTable and PropertyEditor dropdown.
+- **Capsule tags**: Status and Priority rendered as rounded pills with dark backgrounds and white text (high contrast). Color config centralized in `src/config/taskConfig.ts`. Used in both TaskTable and PropertyEditor dropdown.
 - **Deadline helper**: Separate `__deadline_help` column with text-only capsule ("3 Day" green / "Today" orange / "-2 Day" red). Only rendered for active tasks (not done/cancelled).
 - **Done/Cancelled tasks**: Title gets `text-decoration: line-through; opacity: 0.65`; row has `opacity: 0.65`.
 - **Svelte transitions**: `transition:fly` / `transition:fade` for bidirectional enter/exit animations (drawer, backdrop, color picker, date picker, batch bar).
-- **Global UI sizing**: Increased font sizes (+1px base), spacing (+1–2px), sidebar 240px, toolbar 44px, statusbar 28px, drawer 420px.
+- **Global UI sizing**: Increased font sizes (+1px base), spacing (+1–2px), sidebar 250px, toolbar 46px, statusbar 30px, drawer 840px. Font-size variables: `--font-size-sm` 15px, `--font-size-base` 16px, `--font-size-lg` 18px. Spacing: xs 7px, sm 12px, md 17px, lg 22px.
 - **Uniform padding**: `--spacing-lg` on Toolbar, StatusBar, project header, drawer body.
+- **Input sizing**: `.property-input`/`.sel-btn`/`.dp-trigger` 34px height, `.editor-input` 32px, `.todo-editor-input` 30px; horizontal padding 8–12px. Card padding: header `6px 12px`, body `0 12px 10px`, drawer title input `10px 12px`.
+- **Card action buttons**: 22×22px, positioned `absolute; top: 0; right: 4px` inside `.card-body`, visible on card hover.
 
 ## Known Gotchas
 
@@ -226,3 +205,6 @@ Card-style project items with white background, border, rounded corners, and hov
 - `ProjectItem.svelte:14` `$state(project.name)` captures only initial prop value (pre-existing Svelte 5 warning).
 - `formatDateTime` shows date + minutes; `formatDate` shows date-only (used for deadlines).
 - Deadline helper `__deadline_help` column has an empty label, `tabindex=-1`, and `toggleSort` returns early — it is non-interactive.
+- **Tauri drag-drop**: Native HTML5 `drop`/`dragover` events don't fire for file drops because Tauri v2 intercepts them at the window level (`dragDropEnabled` defaults to `true`). Use `getCurrentWebview().onDragDropEvent()` from `@tauri-apps/api/webview` instead. Hit-test with `document.elementFromPoint(position)` to find the target element.
+- **Flex compression**: `overflow: hidden` on a flex item (`.card-item`) makes its main-axis overflow non-`visible`, causing `min-height: auto` to compute to `0`. Cards then shrink proportionally instead of scrolling. Fix: `flex-shrink: 0` prevents compression, and `overflow-y: auto` on the parent scroll container handles overflow.
+- **Card column scroll**: The card column needs `grid-template-rows: 1fr` on `.drawer-body` (forces grid row to container height) AND `min-height: 0` on the grid column (overrides `min-height: auto`). Without both, the column expands to content height and `.cards-list` never scrolls.
