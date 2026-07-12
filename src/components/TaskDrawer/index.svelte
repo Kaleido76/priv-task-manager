@@ -1,6 +1,5 @@
 <script lang="ts">
-  import { taskStore, uiStore, saveRequested } from "$stores";
-  import { getTaskCards, createTaskCard, updateTaskCard, deleteTaskCard, reorderTaskCards, updateTask } from "$api";
+  import { taskStore, uiStore, saveRequested, cardStore } from "$stores";
   import type { TaskCard, CardData, CardType, UpdateTaskRequest } from "$types";
   import PropertyEditor from "./PropertyEditor.svelte";
   import CardAdder from "./CardAdder.svelte";
@@ -12,9 +11,8 @@
 
   const { selectedTask } = taskStore;
   const { drawerOpen } = uiStore;
+  const { cards, loading } = cardStore;
 
-  let cards = $state<TaskCard[]>([]);
-  let loading = $state(false);
   let editingCardId = $state<number | null>(null);
   let editingCardData = $state<CardData>({});
   let editingIsNew = $state(false);
@@ -73,10 +71,7 @@
       confirmingDeleteCardId = null;
       confirmDiscard = false;
       savingBeforeClose = false;
-      loading = true;
-      getTaskCards(task.id).then((c) => {
-        cards = c;
-      }).finally(() => loading = false);
+      cardStore.loadCards(task.id);
     }
   });
 
@@ -88,7 +83,7 @@
     const cardEl = el?.closest('[data-card-id]') as HTMLElement | null;
     if (!cardEl) { dropTargetCardId = null; return; }
     const cardId = parseInt(cardEl.dataset.cardId!);
-    const card = cards.find(c => c.id === cardId);
+    const card = $cards.find(c => c.id === cardId);
 
     if (p.type === 'enter' || p.type === 'over') {
       dropTargetCardId = card?.card_type === "file" ? cardId : null;
@@ -136,8 +131,7 @@
     if (draftDeadline !== deadlineVal) changes.deadline = draftDeadline || null;
 
     if (Object.keys(changes).length > 0) {
-      await updateTask({ id: task.id, ...changes } as unknown as UpdateTaskRequest);
-      taskStore.refresh();
+      await taskStore.update({ id: task.id, ...changes } as unknown as UpdateTaskRequest);
     }
   }
 
@@ -174,46 +168,30 @@
   async function handleAddCard(type: CardType) {
     const task = $selectedTask;
     if (!task) return;
-    const defaultData: CardData = {};
-    const created = await createTaskCard(task.id, type, defaultData);
-    cards = await getTaskCards(task.id);
-    editingCardData = { ...created.data };
-    editingCardId = created.id;
-    editingIsNew = true;
+    const created = await cardStore.addCard(task.id, type);
+    if (created) {
+      editingCardData = { ...created.data };
+      editingCardId = created.id;
+      editingIsNew = true;
+    }
   }
 
   async function handleSaveCard(id: number, data: CardData) {
-    const card = cards.find((c) => c.id === id);
-    let shouldDelete = false;
-    if (card?.card_type === "note") {
-      shouldDelete = !data.content;
-    } else if (card?.card_type === "file") {
-      shouldDelete = !data.path;
-    } else if (card?.card_type === "link") {
-      shouldDelete = !data.url;
-    } else if (card?.card_type === "todolist") {
-      shouldDelete = !data.items || data.items.length === 0;
-    }
-    if (shouldDelete) {
-      await deleteTaskCard(id);
-      cards = cards.filter((c) => c.id !== id);
-    } else {
-      await updateTaskCard(id, data);
-      cards = await getTaskCards($selectedTask!.id);
-    }
+    const card = $cards.find((c) => c.id === id);
+    if (!card) return;
+    await cardStore.saveCard(id, data, $selectedTask!.id, card.card_type);
     editingCardId = null;
   }
 
   async function handleCancelCard(id: number) {
     if (editingIsNew) {
-      await deleteTaskCard(id);
-      cards = cards.filter((c) => c.id !== id);
+      await cardStore.deleteCard(id);
     }
     editingCardId = null;
   }
 
   function handleEditCard(id: number) {
-    const card = cards.find((c) => c.id === id);
+    const card = $cards.find((c) => c.id === id);
     if (card) {
       editingCardData = { ...card.data };
       editingCardId = id;
@@ -223,8 +201,7 @@
 
   async function handleDeleteCard(id: number) {
     if (confirmingDeleteCardId === id) {
-      await deleteTaskCard(id);
-      cards = cards.filter((c) => c.id !== id);
+      await cardStore.deleteCard(id);
       confirmingDeleteCardId = null;
     } else {
       confirmingDeleteCardId = id;
@@ -236,13 +213,7 @@
   }
 
   async function handleToggleTodoItem(cardId: number, itemId: string) {
-    const card = cards.find((c) => c.id === cardId);
-    if (!card || card.card_type !== "todolist" || !card.data.items) return;
-    const items = card.data.items.map((i) =>
-      i.id === itemId ? { ...i, done: !i.done } : i
-    );
-    await updateTaskCard(cardId, { ...card.data, items });
-    cards = await getTaskCards($selectedTask!.id);
+    await cardStore.toggleTodoItem(cardId, itemId, $selectedTask!.id);
   }
 
   function handleCardMouseDown(e: MouseEvent, cardId: number) {
@@ -252,7 +223,6 @@
     const rect = cardEl.getBoundingClientRect();
     dragSourceId = cardId;
 
-    // Create ghost clone
     const clone = cardEl.cloneNode(true) as HTMLElement;
     clone.dataset.ghostOffsetX = String(e.clientX - rect.left);
     clone.dataset.ghostOffsetY = String(e.clientY - rect.top);
@@ -287,7 +257,6 @@
     const cardRects = Array.from(cardEls, (el) => el.getBoundingClientRect());
     const listRect = cardsList.getBoundingClientRect();
 
-    // Build gap positions (viewport Y for each insertion point)
     const gaps: { y: number; index: number }[] = [];
     for (let i = 0; i <= cardRects.length; i++) {
       let y: number;
@@ -303,7 +272,6 @@
       gaps.push({ y, index: i });
     }
 
-    // Find closest gap to cursor
     let closestDist = Infinity;
     let closestGap = gaps[0];
     for (const gap of gaps) {
@@ -311,13 +279,11 @@
       if (dist < closestDist) { closestDist = dist; closestGap = gap; }
     }
 
-    const srcIndex = cards.findIndex((c) => c.id === dragSourceId);
+    const srcIndex = $cards.findIndex((c) => c.id === dragSourceId);
     const targetIndex = closestGap.index;
 
-    // Remove old visual classes
     cardEls.forEach((el) => el.classList.remove("drag-over", "drag-source"));
 
-    // No change if targetIndex equals srcIndex or srcIndex + 1
     const isOriginal = targetIndex === srcIndex || targetIndex === srcIndex + 1;
 
     if (isOriginal || srcIndex < 0) {
@@ -350,7 +316,7 @@
 
     if (sourceId === null || targetIdx < 0) return;
 
-    const ids = cards.map((c) => c.id);
+    const ids = $cards.map((c) => c.id);
     const fromIdx = ids.indexOf(sourceId);
     if (fromIdx < 0) return;
 
@@ -358,8 +324,7 @@
     const insertIdx = targetIdx > fromIdx ? targetIdx - 1 : targetIdx;
     ids.splice(insertIdx, 0, sourceId);
 
-    await reorderTaskCards(ids);
-    cards = await getTaskCards($selectedTask!.id);
+    await cardStore.reorderCards(ids, $selectedTask!.id);
   }
 </script>
 
@@ -400,12 +365,12 @@
       <div class="drawer-col drawer-col-cards">
         <div class="col-heading">Cards</div>
         <div class="cards-list">
-          {#if loading}
+          {#if $loading}
             <div class="drawer-loading">Loading...</div>
-          {:else if cards.length === 0}
+          {:else if $cards.length === 0}
             <div class="cards-empty">No cards yet</div>
           {:else}
-            {#each cards as card}
+            {#each $cards as card}
               {#if editingCardId === card.id}
                 <CardEditor
                   cardType={card.card_type}
@@ -447,7 +412,6 @@
     background: var(--color-bg-primary);
     overflow: hidden;
   }
-  /* ── Header ── */
   .drawer-header {
     display: flex;
     align-items: center;
@@ -498,7 +462,6 @@
     border-color: #a0111f;
   }
 
-  /* ── Body: 2-column grid ── */
   .drawer-body {
     flex: 1;
     display: grid;
@@ -533,7 +496,6 @@
     flex-shrink: 0;
   }
 
-  /* ── Title input (left column) ── */
   .drawer-title-input {
     width: 100%;
     border: 1px solid var(--color-border);
@@ -551,7 +513,6 @@
     border-color: var(--color-accent);
   }
 
-  /* ── Meta timestamps (left column) ── */
   .drawer-meta {
     display: flex;
     flex-direction: column;
@@ -563,7 +524,6 @@
     margin-top: auto;
   }
 
-  /* ── Cards column ── */
   .drawer-col-cards {
     display: flex;
     flex-direction: column;
