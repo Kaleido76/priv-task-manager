@@ -38,10 +38,10 @@ export const cardTypeCfg: Record<string, { label: string; color: string }> = {
   todolist: { label: "TO-DO", color: "#da4b09" },
 };
 
-export function getDeadlineCapsule(deadline: string | null, status: string): CapsuleConfig | null {
+export function getDeadlineCapsule(deadline: string | null, status: string, todayStr?: string): CapsuleConfig | null {
   if (!deadline || status === "done" || status === "cancelled") return null;
-  const now = new Date();
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const seed = todayStr ? new Date(todayStr + "T00:00:00") : new Date();
+  const today = new Date(seed.getFullYear(), seed.getMonth(), seed.getDate());
   const d = new Date(deadline);
   const due = new Date(d.getFullYear(), d.getMonth(), d.getDate());
   const diffMs = due.getTime() - today.getTime();

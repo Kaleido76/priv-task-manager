@@ -17,6 +17,7 @@ Users create **Projects** (sidebar) and manage **Tasks** (table + drawer) under 
 | Database | SQLite via rusqlite 0.31 | `bundled` feature, WAL mode |
 | State | Svelte `writable/derived` stores | `src/stores/` |
 | IPC | `@tauri-apps/api/core` `invoke()` | Frontend ↔ Rust commands |
+| Open/Launch | `tauri-plugin-opener` / `@tauri-apps/plugin-opener` | Registered in lib.rs + capabilities |
 | Build | Vite 6 (frontend) + Cargo (backend) | |
 
 ## Portability (Critical!)
@@ -24,6 +25,8 @@ Users create **Projects** (sidebar) and manage **Tasks** (table + drawer) under 
 The app is **portable**: `taskmanager.db` is created next to the executable (`std::env::current_exe().parent()`), **not** in AppData. Never use `app.path().app_data_dir()` or any OS-specific directory.
 
 If you need to reset the database, delete `taskmanager.db` in the exe directory.
+
+**Known portability bug**: `open_file_location` and `open_url` in `card_cmds.rs` use Windows-only commands (`explorer` / `cmd /c start`). The `tauri-plugin-opener` is already a dependency but not used for these. To fix, replace with `tauri_plugin_opener::open_path()` / `open_url()`.
 
 ## Project Structure
 
@@ -34,10 +37,13 @@ TaskManager/
 │   ├── routes/
 │   │   ├── +layout.svelte        # Global layout — imports variables.css + global.css
 │   │   ├── +layout.ts            # SSR disabled
-│   │   └── +page.svelte          # Shell (imports ProjectHeader, etc.)
+│   │   └── +page.svelte          # Shell (imports ProjectHeader, Toolbar, TaskTable, etc.)
 │   ├── components/
 │   │   ├── Sidebar/              # Project list + create (card-style items)
-│   │   ├── ProjectHeader/        # Project name + description (extracted from +page)
+│   │   │   ├── index.svelte      # Sidebar shell + "+" button
+│   │   │   └── ProjectItem.svelte # Project card with name, colored dot, delete
+│   │   ├── ProjectHeader/        # Project name, description, color picker (8 swatches)
+│   │   │   └── index.svelte      # Inline edit, color dot + popup, created/updated meta
 │   │   ├── Toolbar/              # Global search (+ New Task)
 │   │   ├── TaskTable/            # 7-column grid + column header buttons + filter popups
 │   │   ├── TaskDrawer/           # Detail panel: title, properties, cards (file/note/link/todolist)
@@ -49,51 +55,69 @@ TaskManager/
 │   │   │   └── PropertyEditor.svelte # Colored dropdowns for status/priority/recipient/deadline
 │   │   └── StatusBar/            # Project name, counts, save status
 │   ├── config/
-│   │   └── taskConfig.ts         # statusCfg, priorityCfg, deadline capsule colors
+│   │   ├── taskConfig.ts         # statusCfg, priorityCfg, deadline capsule colors
+│   │   ├── locale.ts             # Locale constants (e.g., short date format "yyyy-MM-dd")
+│   │   └── index.ts              # Barrel export
 │   ├── actions/
 │   │   └── clickOutside.ts       # clickOutside Svelte action
 │   ├── stores/
 │   │   ├── projectStore.ts       # Project CRUD, selectedId
 │   │   ├── taskStore.ts          # Task CRUD + searchKeyword + batch select
-│   │   └── uiStore.ts            # Drawer, saveStatus, activeTab
+│   │   ├── cardStore.ts          # Card CRUD + reorder
+│   │   ├── uiStore.ts            # Drawer, saveStatus, statusMessage, saveRequested counter
+│   │   └── index.ts              # Barrel export
 │   ├── api/
 │   │   ├── project.ts            # invoke("get_projects"), etc.
-│   │   └── task.ts               # invoke("get_tasks"), etc.
+│   │   ├── task.ts               # invoke("get_tasks"), etc.
+│   │   └── index.ts              # Barrel export
 │   ├── types/
-│   │   ├── task.ts               # Task, CardData, TodoItem, CardType — no Rust enums, plain strings
-│   │   └── project.ts            # Project interface
+│   │   ├── task.ts               # Task, CardData, TodoItem, CardType, TaskStatus/Priority enums
+│   │   ├── project.ts            # Project interface
+│   │   └── index.ts              # Barrel export
 │   ├── utils/
-│   │   └── index.ts              # formatDate, formatDateTime, nowISO
+│   │   ├── index.ts              # formatDate, formatDateTime, nowISO
+│   │   └── autoSave.ts           # Debounced auto-save utility
 │   └── styles/
 │       ├── variables.css         # :root CSS custom properties (colors, spacing, etc.)
 │       └── global.css            # Resets, scrollbar, base html/body
 ├── src-tauri/                    # Backend (Rust)
 │   ├── src/
-│   │   ├── lib.rs                # Tauri setup, register commands
+│   │   ├── lib.rs                # Tauri setup, register 22 commands, opener plugin
 │   │   ├── main.rs               # Entry point
 │   │   ├── database/
 │   │   │   ├── mod.rs            # Database struct, init(), PRAGMAs
 │   │   │   └── migrations/
-│   │   │       ├── mod.rs        # Schema init (runs 0001_init.sql)
-│   │   │       └── 0001_init.sql # Final schema (projects with description/update_time, tasks with recipient, no progress)
+│   │   │       ├── mod.rs        # Versioned migration runner (PRAGMA user_version)
+│   │   │       └── 001_init.sql  # Final schema (projects with description/update_time, tasks with recipient, no progress)
 │   │   ├── models/
-│   │   │   ├── task.rs           # Task, TaskContent, TaskLog (enums removed — plain strings)
+│   │   │   ├── mod.rs
+│   │   │   ├── task.rs           # Task, TaskContent, TaskLog (enums removed — plain strings on Rust side)
 │   │   │   └── project.rs        # Project
 │   │   ├── repository/           # Raw SQL queries
+│   │   │   ├── mod.rs
 │   │   │   ├── project_repo.rs   # CRUD + sort_order
 │   │   │   ├── task_repo.rs      # CRUD + search + content upsert + batch ops
-│   │   │   └── task_log_repo.rs  # CRUD + delete + search (removed)
+│   │   │   ├── task_log_repo.rs  # CRUD by task_id
+│   │   │   └── card_repo.rs      # CRUD + reorder for task_cards
 │   │   ├── services/             # Business logic
+│   │   │   ├── mod.rs
 │   │   │   ├── project_service.rs
-│   │   │   └── task_service.rs
+│   │   │   ├── task_service.rs
+│   │   │   └── card_service.rs
 │   │   ├── commands/             # #[tauri::command] handlers
+│   │   │   ├── mod.rs
 │   │   │   ├── project_cmds.rs
 │   │   │   ├── task_cmds.rs
 │   │   │   └── card_cmds.rs
 │   │   └── utils/
 │   │       └── mod.rs            # deserialize_some helper for nullable Option fields
+│   ├── build.rs
+│   ├── capabilities/
+│   │   └── default.json          # Permissions: core:default + opener:default
 │   ├── Cargo.toml
 │   └── tauri.conf.json
+├── static/
+│   └── favicon.png
 ├── package.json
 ├── svelte.config.js              # adapter-static, path aliases ($api, $stores, $config, $actions, etc.)
 ├── tsconfig.json
@@ -140,7 +164,7 @@ pub fn some_command(db: tauri::State<Database>, param: Type) -> Result<ReturnTyp
 
 ## Database Schema
 
-See `src-tauri/src/database/migrations/0001_init.sql`. Key tables:
+See `src-tauri/src/database/migrations/001_init.sql`. Key tables:
 
 - **projects** — `id, name, description, color, sort_order, create_time, update_time`
 - **tasks** — `id, project_id, title, status, priority, recipient, deadline, create_time, update_time`
@@ -148,7 +172,7 @@ See `src-tauri/src/database/migrations/0001_init.sql`. Key tables:
 - **task_logs** — `id, task_id, content, create_time`
 - **task_cards** — `id, task_id, sort_order, card_type, data (JSON), create_time, update_time`
 
-The schema is applied once at startup via `CREATE TABLE IF NOT EXISTS`. There is no migration versioning — the `0001_init.sql` is the single source of truth for the database layout.
+Migrations use `PRAGMA user_version` for version tracking. See `migrations/mod.rs`.
 
 ## Key Components
 
@@ -180,12 +204,15 @@ Read-only card display. File/Link: click‑hint "Double‑click to open…" left
 Checkbox column enables multi-select. When `selectedTaskIds.size > 0`, row click toggles selection instead of opening drawer. Floating action bar (`transition:fade`) with Select All / Clear / Delete (single-step) / Move to Project (popup with project list). Backend `delete_tasks` / `move_tasks` accept `Vec<i64>`.
 
 ### Sidebar (`src/components/Sidebar/`)
-Card-style project items with white background, border, rounded corners, and hover shadow. Skip reload when clicking already-selected project. "+" button creates a project with default name "New Project". Clicking color dot opens a popup with 8 swatches + no-color option; selection saves via `updateProjectColor`.
+Card-style project items with white background, border, rounded corners, and hover shadow. Skip reload when clicking already-selected project. "+" button creates a project with default name "New Project". Static colored dot (non-interactive) — color editing is in ProjectHeader.
+
+### ProjectHeader (`src/components/ProjectHeader/`)
+Inline-editable project name + description. Color dot with **clickable popup** showing 8 swatches + no-color option. Selection saves via `projectStore.updateColor`. Created/Updated timestamps shown.
 
 ## UI Conventions
 
 - **Capsule tags**: Status and Priority rendered as rounded pills with dark backgrounds and white text (high contrast). Color config centralized in `src/config/taskConfig.ts`. Used in both TaskTable and PropertyEditor dropdown.
-- **Deadline helper**: Separate `__deadline_help` column with text-only capsule ("3 Day" green / "Today" orange / "-2 Day" red). Only rendered for active tasks (not done/cancelled).
+- **Deadline helper**: Separate `__deadline_help` column with text-only capsule ("3 Day" green / "Today" orange / "-2 Day" red). Only rendered for active tasks (not done/cancelled). Column header is non-interactive (`toggleSort` returns early).
 - **Done/Cancelled tasks**: Title gets `text-decoration: line-through; opacity: 0.65`; row has `opacity: 0.65`.
 - **Svelte transitions**: `transition:fly` / `transition:fade` for bidirectional enter/exit animations (drawer, backdrop, color picker, date picker, batch bar).
 - **Global UI sizing**: Increased font sizes (+1px base), spacing (+1–2px), sidebar 250px, toolbar 46px, statusbar 30px, drawer 840px. Font-size variables: `--font-size-sm` 15px, `--font-size-base` 16px, `--font-size-lg` 18px. Spacing: xs 7px, sm 12px, md 17px, lg 22px.
@@ -201,10 +228,9 @@ Card-style project items with white background, border, rounded corners, and hov
 - The app ONLY works with `adapter-static` in SPA mode; SSR is disabled.
 - All Tauri command parameters must be owned types (`Option<String>` not `Option<&str>`).
 - When using `bundled` SQLite, the feature flag must be on in `Cargo.toml`.
-- Unused legacy code: `TaskStatus`/`Priority` Rust enums, `get_task` service fn, `StatusBadge`/`ProgressBadge` components — can be removed or refactored.
-- `ProjectItem.svelte:14` `$state(project.name)` captures only initial prop value (pre-existing Svelte 5 warning).
+- TypeScript has `TaskStatus`/`Priority` **string-valued enums**; the Rust side uses plain strings (not enums).
 - `formatDateTime` shows date + minutes; `formatDate` shows date-only (used for deadlines).
-- Deadline helper `__deadline_help` column has an empty label, `tabindex=-1`, and `toggleSort` returns early — it is non-interactive.
+- Deadline helper `__deadline_help` column header is non-interactive — `toggleSort` returns early.
 - **Tauri drag-drop**: Native HTML5 `drop`/`dragover` events don't fire for file drops because Tauri v2 intercepts them at the window level (`dragDropEnabled` defaults to `true`). Use `getCurrentWebview().onDragDropEvent()` from `@tauri-apps/api/webview` instead. Hit-test with `document.elementFromPoint(position)` to find the target element.
 - **Flex compression**: `overflow: hidden` on a flex item (`.card-item`) makes its main-axis overflow non-`visible`, causing `min-height: auto` to compute to `0`. Cards then shrink proportionally instead of scrolling. Fix: `flex-shrink: 0` prevents compression, and `overflow-y: auto` on the parent scroll container handles overflow.
 - **Card column scroll**: The card column needs `grid-template-rows: 1fr` on `.drawer-body` (forces grid row to container height) AND `min-height: 0` on the grid column (overrides `min-height: auto`). Without both, the column expands to content height and `.cards-list` never scrolls.

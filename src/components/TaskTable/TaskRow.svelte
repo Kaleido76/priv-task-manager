@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { Task } from "$types";
   import { formatDate } from "$utils";
-  import { taskStore } from "$stores";
+  import { taskStore, todayStore } from "$stores";
   import { statusCfg, priorityCfg, getDeadlineCapsule } from "$config";
   import { CheckSquare, Square } from "@lucide/svelte";
 
@@ -16,7 +16,7 @@
 
   let checked = $derived($selectedTaskIds.has(task.id));
 
-  let deadlineCapsule = $derived(getDeadlineCapsule(task.deadline, task.status));
+  let deadlineCapsule = $derived(getDeadlineCapsule(task.deadline, task.status, $todayStore));
 
   function handleCheck(e: Event) {
     e.stopPropagation();

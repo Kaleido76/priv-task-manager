@@ -2,6 +2,7 @@
   import { ChevronLeft, ChevronRight, Calendar } from "@lucide/svelte";
   import { clickOutside } from "$actions/clickOutside";
   import { fly } from "svelte/transition";
+  import { todayStore } from "$stores";
 
   let { value = $bindable("") }: { value: string } = $props();
 
@@ -59,7 +60,7 @@
     return days;
   });
 
-  const todayStr = $derived(new Date().toISOString().split("T")[0]);
+  const todayStr = $derived($todayStore);
   const monthName = $derived(new Date(viewYear, viewMonth).toLocaleString("en-US", { month: "long" }));
 </script>
 
