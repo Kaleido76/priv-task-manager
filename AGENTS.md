@@ -16,6 +16,7 @@ Users create **Projects** (sidebar) and manage **Tasks** (table + drawer) under 
 | Icons | `@lucide/svelte` | GitHub-style consistent icon set |
 | Database | SQLite via rusqlite 0.31 | `bundled` feature, WAL mode |
 | State | Svelte `writable/derived` stores | `src/stores/` |
+| Today Store | `todayStore.ts` | YYYY-MM-DD string, auto-refreshes at midnight |
 | IPC | `@tauri-apps/api/core` `invoke()` | Frontend ↔ Rust commands |
 | Open/Launch | `tauri-plugin-opener` / `@tauri-apps/plugin-opener` | Registered in lib.rs + capabilities |
 | Build | Vite 6 (frontend) + Cargo (backend) | |
@@ -65,6 +66,7 @@ TaskManager/
 │   │   ├── taskStore.ts          # Task CRUD + searchKeyword + batch select
 │   │   ├── cardStore.ts          # Card CRUD + reorder
 │   │   ├── uiStore.ts            # Drawer, saveStatus, statusMessage, saveRequested counter
+│   │   ├── todayStore.ts         # YYYY-MM-DD string, auto-refreshes at midnight
 │   │   └── index.ts              # Barrel export
 │   ├── api/
 │   │   ├── project.ts            # invoke("get_projects"), etc.
@@ -183,7 +185,7 @@ Custom calendar popup replacing native `<input type="date">`. Supports month nav
 Custom button+popup widgets replacing native `<select>` for Status and Priority. Each option rendered as a colored capsule dot + label. Popup uses Svelte `transition:fade` for smooth enter/exit. Recipient is a plain text input; Deadline uses the DatePicker.
 
 ### TaskTable (`src/components/TaskTable/`)
-7-column CSS Grid layout (checkbox + 6 data columns). Columns are hardcoded with specific widths and text-align values — no `columns` prop (to prevent index mismatch). Each column header has three **circular buttons** ([Sort] [Filter] [Clear]) that appear on hover and straddle the header's top border. Active buttons turn accent blue with white icon. Filter popups use `position: fixed` (JS-anchored from button `getBoundingClientRect`) to avoid clipping. Sorting and filtering are **pure frontend** (local state in TaskTable, no store or backend calls). The `__deadline_help` column shows colored capsules ("3 Day" green / "Today" orange / "-2 Day" red) based on days until deadline; hidden for done/cancelled tasks.
+7-column CSS Grid layout (checkbox + 6 data columns). Columns are hardcoded with specific widths and text-align values — no `columns` prop (to prevent index mismatch). Each column header has three **circular buttons** ([Sort] [Filter] [Clear]) that appear on hover and straddle the header's top border. Active buttons turn accent blue with white icon. Filter popups use `position: fixed` (JS-anchored from button `getBoundingClientRect`) to avoid clipping. Sorting and filtering are **pure frontend** (local state in TaskTable, no store or backend calls). The `__deadline_help` column shows colored capsules ("3 Day" green / "Today" orange / "-2 Day" red) based on days until deadline; hidden for done/cancelled tasks. Capsules auto-refresh at midnight via `todayStore`.
 
 ### TaskDrawer (`src/components/TaskDrawer/`)
 Floating fixed-position 840px panel with backdrop. Two-column grid layout: metadata (title, status/priority/recipient/deadline via PropertyEditor, created/updated timestamps) left, cards right. Edits use a local draft state with `saveRequested` store signal for auto-save.
@@ -213,6 +215,7 @@ Inline-editable project name + description. Color dot with **clickable popup** s
 
 - **Capsule tags**: Status and Priority rendered as rounded pills with dark backgrounds and white text (high contrast). Color config centralized in `src/config/taskConfig.ts`. Used in both TaskTable and PropertyEditor dropdown.
 - **Deadline helper**: Separate `__deadline_help` column with text-only capsule ("3 Day" green / "Today" orange / "-2 Day" red). Only rendered for active tasks (not done/cancelled). Column header is non-interactive (`toggleSort` returns early).
+- **Date-boundary auto-refresh**: `getDeadlineCapsule` in `taskConfig.ts` and `todayStr` in `DatePicker.svelte` derive from `todayStore` (a Svelte writable storing `YYYY-MM-DD`). A `setTimeout` schedules the next midnight and updates the store, ensuring deadline capsules and today highlighting refresh automatically when the date changes, even if the app stays open across midnight.
 - **Done/Cancelled tasks**: Title gets `text-decoration: line-through; opacity: 0.65`; row has `opacity: 0.65`.
 - **Svelte transitions**: `transition:fly` / `transition:fade` for bidirectional enter/exit animations (drawer, backdrop, color picker, date picker, batch bar).
 - **Global UI sizing**: Increased font sizes (+1px base), spacing (+1–2px), sidebar 250px, toolbar 46px, statusbar 30px, drawer 840px. Font-size variables: `--font-size-sm` 15px, `--font-size-base` 16px, `--font-size-lg` 18px. Spacing: xs 7px, sm 12px, md 17px, lg 22px.
